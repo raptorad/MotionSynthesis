@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Motion Synthesis - Ludzik 2D</title>
+  <style>
+    body {
+      margin: 0;
+      background: #516592;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      font-family: sans-serif;
+      color: #eee;
+      flex-direction: column;
+    }
+    canvas {
+      background: #16213e;
+      border-radius: 8px;
+      box-shadow: 0 0 30px rgba(100, 150, 255, 0.3);
+    }
+    .controls {
+      margin-top: 20px;
+      flex-direction: column;
+      justify-content: space-between;
+      display: flex;
+      gap: 15px;
+      align-items: center;
+    }
+    .controls label {
+      display: flex;
+      align-items: center; 
+      gap: 10px;
+      width: 320px;
+      justify-content: space-between;
+    }
+    .controls label span {
+      width: 120px;
+      text-align: left;
+    }
+    .sign{
+      margin-top: 40px;
+    }
+    input[type="range"] { width: 200px; }
+  </style>
+</head>
+<body>
+  <canvas id="canvas" width="500" height="500"></canvas>
+  <div class="controls">
+    <label><span>Prędkość: </span><input type="range" id="speed" min="0" max="5" step="0.1" value="1.5"></label>
+    <label><span>Wysokość: </span><input type="range" id="torsoHeight" min="0" max="20" step="0.1" value="2"></label>
+    <label><span>Amp legs: </span><input type="range" id="ampLegs" min="0" max="2.5" step="0.1" value="1"></label>
+    <label><span>Amp knees: </span><input type="range" id="ampKnees" min="0" max="2.5" step="0.1" value="1"></label>
+    <label><span>Amp torso: </span><input type="range" id="ampTorso" min="0" max="2.5" step="0.1" value="1"></label>
+    <label><span>Amp arms: </span><input type="range" id="ampArms" min="0" max="2.5" step="0.1" value="1"></label>
+  </div>
+  <div class="sign">
+    <label>Michał Czajka 2026</label>
+  </div>
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+// Middle of the canvas
+const originX = canvas.width / 2;
+const originY = canvas.height / 2;
+
+let AMPLITUDES ={
+  legs: 2,
+  knees: 2,
+  torso: 2,
+  arms: 2,
+  
+};
+// Body elements proportions (pixels)
+const BODY = {
+  torso: 60,      
+  headRadius: 18,
+  upperArm: 35,
+  lowerArm: 35,
+  upperLeg: 45,
+  lowerLeg: 45,
+};
+
+// State of animation
+let phase = 0;          // movement phase (rises over time)
+let speedMultiplier = 1.5;
+let jumpHeight = 2;
+
+// --- Helpers ---
+const lerp = (a, b, t) => a + (b - a) * t;
+
+/**
+ * Rysuje kończynę jako łańcuch segmentów (kinematyka prosta).
+ * Kąty podajemy w radianach, względem pionu (0 = w dół).
+ */
+function drawLimb(x, y, angles, lengths, color = '#4ecdc4', width = 6) {
+  let px = x, py = y;
+  let cumulativeAngle = 0;
+  
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(px, py);
+  
+  for (let i = 0; i < angles.length; i++) {
+    cumulativeAngle += angles[i];
+    // Kąt 0 = w dół. Używamy sin/cos tak, żeby kierunek "w dół" był naturalny.
+    const nx = px + Math.sin(cumulativeAngle) * lengths[i];
+    const ny = py + Math.cos(cumulativeAngle) * lengths[i];
+    ctx.lineTo(nx, ny);
+    px = nx;
+    py = ny;
+  }
+  ctx.stroke();
+  
+  return { x: px, y: py };
+}
+
+/**
+ * MOTION SYNTHESIS - generuje kąty stawów na podstawie fazy ruchu.
+ * To jest serce animacji: żadnych klatek kluczowych, tylko matematyka.
+ */
+function synthesizePose(t) {
+  
+  // Nogi - przesunięte w fazie o π (przeciwstawne)
+  const legSwing = Math.sin(t) * 0.7 * AMPLITUDES.legs;
+  const legSwingOpposite = Math.sin(t + Math.PI) * 0.7 * AMPLITUDES.legs;
+  
+  // Kolana zginają się mocniej, gdy noga jest z tyłu (naturalny ruch)
+  const kneeBend = (s) => Math.max(0, -Math.sin(s + 0.5)) * 0.9 * AMPLITUDES.knees;
+  
+  // Ręce - przeciwstawne do nóg (kontralateralny ruch)
+  const armSwingL = Math.sin(t + Math.PI) * 0.6 * AMPLITUDES.arms;
+  const armSwingR = Math.sin(t) * 0.6 * AMPLITUDES.arms;
+  
+  // Łokcie lekko zgięte
+  const elbowBend = -0.3;
+  
+  // Tułów lekko się kołysze
+  const torsoLean = Math.sin(t * 2) * 0.03 * AMPLITUDES.torso;
+  const torsoHeightOffset = Math.sin(t * 2) * jumpHeight * AMPLITUDES.torso;
+  
+  // Głowa delikatnie się kiwa
+  const headNod = Math.sin(t * 2) * 0.05 * AMPLITUDES.torso;
+  
+  return {
+    leftLeg: {
+      angles: [legSwing, kneeBend(t)],
+      lengths: [BODY.upperLeg, BODY.lowerLeg],
+    },
+    rightLeg: {
+      angles: [legSwingOpposite, kneeBend(t + Math.PI)],
+      lengths: [BODY.upperLeg, BODY.lowerLeg],
+    },
+    leftArm: {
+      angles: [armSwingL, elbowBend],
+      lengths: [BODY.upperArm, BODY.lowerArm],
+    },
+    rightArm: {
+      angles: [armSwingR, elbowBend],
+      lengths: [BODY.upperArm, BODY.lowerArm],
+    },
+    torsoLean,
+    headNod,
+    torsoHeightOffset,
+  };
+}
+
+/**
+ * Rysuje całą postać w danej pozycji.
+ */
+function drawCharacter(pose) {
+  // Biodra w punkcie origin. Rysujemy od bioder w górę (tułów) i w dół (nogi).
+  const hipX = originX;
+  const hipY = originY + 40 + pose.torsoHeightOffset;
+  
+  // --- LEG 1 ---
+  drawLimb(hipX - 8, hipY, pose.leftLeg.angles, pose.leftLeg.lengths, '#ff6b6b', 8);
+
+  const torso = BODY.torso - pose.torsoHeightOffset;
+  
+  // --- TORSO ---
+  // Tułów pochyla się w przód/tył (obrót wokół bioder)
+  const shoulderX = hipX + Math.sin(pose.torsoLean) * BODY.torso;
+  const shoulderY = hipY - Math.cos(pose.torsoLean) * BODY.torso;
+
+  // --- ARM 1 ---
+  drawLimb(shoulderX - 6, shoulderY, pose.leftArm.angles, pose.leftArm.lengths, '#4ecdc4', 7);
+  
+  ctx.strokeStyle = '#ffe66d';
+  ctx.lineWidth = 14;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(hipX, hipY);
+  ctx.lineTo(shoulderX, shoulderY);
+  ctx.stroke();
+
+  // --- LEG 2 ---
+  drawLimb(hipX + 8, hipY, pose.rightLeg.angles, pose.rightLeg.lengths, '#ff6b6b', 8);
+  
+  // --- ARM 2 ---
+  drawLimb(shoulderX + 6, shoulderY, pose.rightArm.angles, pose.rightArm.lengths, '#4ecdc4', 7);
+  
+  // --- HEAD ---
+  const neckX = shoulderX + Math.sin(pose.torsoLean + pose.headNod) * 8;
+  const neckY = shoulderY - Math.cos(pose.torsoLean + pose.headNod) * 8;
+  const headX = neckX + Math.sin(pose.torsoLean + pose.headNod) * BODY.headRadius;
+  const headY = neckY - Math.cos(pose.torsoLean + pose.headNod) * BODY.headRadius;
+  
+  // Neck
+  ctx.strokeStyle = '#ffe66d';
+  ctx.lineWidth = 8;
+  ctx.beginPath();
+  ctx.moveTo(shoulderX, shoulderY);
+  ctx.lineTo(neckX, neckY);
+  ctx.stroke();
+  
+  // Head
+  ctx.fillStyle = '#ffe66d';
+  ctx.beginPath();
+  ctx.arc(headX, headY, BODY.headRadius, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Eye for orientation
+  const eyeOffsetX = Math.sin(pose.torsoLean + pose.headNod) * 8 - 20;
+  const eyeOffsetY = -Math.cos(pose.torsoLean + pose.headNod) * 8;
+  ctx.fillStyle = '#1a1a2e';
+  ctx.beginPath();
+  ctx.arc(headX + eyeOffsetX * 0.5, headY + eyeOffsetY * 0.5, 3, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+/**
+ * Główna pętla animacji.
+ */
+let lastTime = performance.now();
+
+function animate(now) {
+  const dt = (now - lastTime) / 1000;
+  lastTime = now;
+  
+  // Faza rośnie proporcjonalnie do czasu → płynny, ciągły ruch
+  phase += dt * speedMultiplier * 4;
+  
+  // Clear screen
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  
+  // Draw floor
+  ctx.strokeStyle = '#0f3460';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(50, originY + 40 + BODY.upperLeg + BODY.lowerLeg);
+  ctx.lineTo(canvas.width - 50, originY + 40 + BODY.upperLeg + BODY.lowerLeg);
+  ctx.stroke();
+  
+  // MOTION SYNTHESIS → POSE → DRAW
+  const pose = synthesizePose(phase);
+  drawCharacter(pose);
+  
+  requestAnimationFrame(animate);
+}
+
+// Sliders
+document.getElementById('speed').addEventListener('input', e => {
+  speedMultiplier = parseFloat(e.target.value);
+});
+document.getElementById('ampArms').addEventListener('input', e => {
+  AMPLITUDES.arms = parseFloat(e.target.value);
+});
+document.getElementById('ampKnees').addEventListener('input', e => {
+  AMPLITUDES.knees = parseFloat(e.target.value);
+});
+document.getElementById('ampTorso').addEventListener('input', e => {
+  AMPLITUDES.torso = parseFloat(e.target.value);
+});
+document.getElementById('ampLegs').addEventListener('input', e => {
+  AMPLITUDES.legs = parseFloat(e.target.value);
+});
+document.getElementById('torsoHeight').addEventListener('input', e => {
+  jumpHeight = parseFloat(e.target.value);
+});
+
+
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>
