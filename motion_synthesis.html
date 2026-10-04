@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Motion Synthesis - 2D Stick Figure</title>
+  <title>Motion Synthesis - Ludzik 2D</title>
   <style>
     body {
       margin: 0;
@@ -32,33 +32,95 @@
       display: flex;
       align-items: center; 
       gap: 10px;
-      width: 320px;
+      width: 380px;
       justify-content: space-between;
     }
-    .controls label span {
-      width: 120px;
+    .controls label span.label-text {
+      width: 110px;
       text-align: left;
     }
-    .sign{
-      margin-top: 40px;
+    .controls label span.value-display {
+      width: 40px;
+      text-align: right;
+      font-weight: bold;
+      color: #4ecdc4;
     }
-    input[type="range"] { width: 200px; }
+    .presets {
+      margin-top: 15px;
+      display: flex;
+      gap: 10px;
+    }
+    .presets button {
+      background: #4ecdc4;
+      border: none;
+      color: #16213e;
+      padding: 8px 16px;
+      font-weight: bold;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+    }
+    .presets button:hover {
+      background: #3bb2aa;
+    }
+    .presets button:active {
+      transform: scale(0.96);
+    }
+    .sign{
+      margin-top: 20px;
+    }
+    input[type="range"] { width: 180px; }
   </style>
 </head>
 <body>
   <canvas id="canvas" width="500" height="500"></canvas>
-  <div class="controls">
-    <label><span>Prędkość: </span><input type="range" id="speed" min="0" max="5" step="0.1" value="1.5"></label>
-    <label><span>Wysokość: </span><input type="range" id="torsoHeight" min="0" max="20" step="0.1" value="2"></label>
-    <label><span>Amp legs: </span><input type="range" id="ampLegs" min="0" max="2.5" step="0.1" value="1"></label>
-    <label><span>Amp knees: </span><input type="range" id="ampKnees" min="0" max="2.5" step="0.1" value="1"></label>
-    <label><span>Amp torso: </span><input type="range" id="ampTorso" min="0" max="2.5" step="0.1" value="1"></label>
-    <label><span>Amp arms: </span><input type="range" id="ampArms" min="0" max="2.5" step="0.1" value="1"></label>
-    <label><span>Front/rear </span><input type="range" id="frontRear" min="0.5" max="1.5" step="0.1" value="1"></label>
+  
+  <div class="presets" id="presetContainer">
+    <!-- Przycisk generowane automatycznie -->
   </div>
+
+  <div class="controls">
+    <label>
+      <span class="label-text">Speed:</span>
+      <input type="range" id="speed" min="0" max="5" step="0.1" value="1.5">
+      <span class="value-display" id="val-speed">1.5</span>
+    </label>
+    <label>
+      <span class="label-text">Height:</span>
+      <input type="range" id="torsoHeight" min="0" max="20" step="0.1" value="2">
+      <span class="value-display" id="val-torsoHeight">2.0</span>
+    </label>
+    <label>
+      <span class="label-text">Amp legs:</span>
+      <input type="range" id="ampLegs" min="0" max="2.8" step="0.1" value="1">
+      <span class="value-display" id="val-ampLegs">1.0</span>
+    </label>
+    <label>
+      <span class="label-text">Amp knees:</span>
+      <input type="range" id="ampKnees" min="0" max="2.5" step="0.1" value="1">
+      <span class="value-display" id="val-ampKnees">1.0</span>
+    </label>
+    <label>
+      <span class="label-text">Amp torso:</span>
+      <input type="range" id="ampTorso" min="0" max="2.5" step="0.1" value="1">
+      <span class="value-display" id="val-ampTorso">1.0</span>
+    </label>
+    <label>
+      <span class="label-text">Amp arms:</span>
+      <input type="range" id="ampArms" min="0" max="2.5" step="0.1" value="1">
+      <span class="value-display" id="val-ampArms">1.0</span>
+    </label>
+    <label>
+      <span class="label-text">Front/rear:</span>
+      <input type="range" id="frontRear" min="0.5" max="1.5" step="0.1" value="1">
+      <span class="value-display" id="val-frontRear">1.0</span>
+    </label>
+  </div>
+  
   <div class="sign">
     <label>Michał Czajka 2026</label>
   </div>
+
 <script>
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
@@ -67,13 +129,13 @@ const ctx = canvas.getContext('2d');
 const originX = canvas.width / 2;
 const originY = canvas.height / 2;
 
-let AMPLITUDES ={
-  legs: 2,
-  knees: 2,
-  torso: 2,
-  arms: 2,
-  
+let AMPLITUDES = {
+  legs: 1,
+  knees: 1,
+  torso: 1,
+  arms: 1,
 };
+
 // Body elements proportions (pixels)
 const BODY = {
   torso: 60,      
@@ -88,15 +150,150 @@ const BODY = {
 let phase = 0;          // movement phase (rises over time)
 let speedMultiplier = 1.5;
 let jumpHeight = 2;
-let frontRear = 1;
-let rearFront =1;
+let frontRear = 0.5;
+let rearFront = 0.5;
+
+// --- PRESET SYSTEM ---
+const PRESETS = [
+  {
+    name: "Walk",
+    settings: {
+      speed: 1.2,
+      torsoHeight: 2.0,
+      legs: 0.8,
+      knees: 0.8,
+      torso: 0.8,
+      arms: 0.8,
+      frontRear: 1.0
+    }
+  },
+  {
+    name: "Jog",
+    settings: {
+      speed: 1.8,
+      torsoHeight: 2.0,
+      legs: 1.4,
+      knees: 1.6,
+      torso: 1.2,
+      arms: 1.8,
+      frontRear: 1.0
+    }
+  },
+  {
+    name: "Happy",
+    settings: {
+      speed: 1.4,
+      torsoHeight: 2.0,
+      legs: 1.2,
+      knees: 1.4,
+      torso: 0.8,
+      arms: 1.8,
+      frontRear: 1.0
+    }
+  },
+  {
+    name: "Run",
+    settings: {
+      speed: 3.0,
+      torsoHeight: 4.0,
+      legs: 1.8,
+      knees: 2.2,
+      torso: 1.5,
+      arms: 2.0,
+      frontRear: 1.0
+    }
+  },
+  {
+    name: "Run2",
+    settings: {
+      speed: 2.8,
+      torsoHeight: 2.0,
+      legs: 2.8,
+      knees: 2.0,
+      torso: 1.7,
+      arms: 2.5,
+      frontRear: 1.0
+    }
+  },
+  {
+    name: "Bounce",
+    settings: {
+      speed: 2.5,
+      torsoHeight: 18.0,
+      legs: 0.5,
+      knees: 1.8,
+      torso: 2.2,
+      arms: 2.2,
+      frontRear: 1.0
+    }
+  }
+  
+];
+
+// Helper to update displayed numerical values
+function updateDisplayValues() {
+  document.getElementById('val-speed').textContent = parseFloat(document.getElementById('speed').value).toFixed(1);
+  document.getElementById('val-torsoHeight').textContent = parseFloat(document.getElementById('torsoHeight').value).toFixed(1);
+  document.getElementById('val-ampLegs').textContent = parseFloat(document.getElementById('ampLegs').value).toFixed(1);
+  document.getElementById('val-ampKnees').textContent = parseFloat(document.getElementById('ampKnees').value).toFixed(1);
+  document.getElementById('val-ampTorso').textContent = parseFloat(document.getElementById('ampTorso').value).toFixed(1);
+  document.getElementById('val-ampArms').textContent = parseFloat(document.getElementById('ampArms').value).toFixed(1);
+  document.getElementById('val-frontRear').textContent = parseFloat(document.getElementById('frontRear').value).toFixed(1);
+}
+
+// Helper to synchronise DOM sliders with values
+function updateUI() {
+  document.getElementById('speed').value = speedMultiplier;
+  document.getElementById('torsoHeight').value = jumpHeight;
+  document.getElementById('ampLegs').value = AMPLITUDES.legs;
+  document.getElementById('ampKnees').value = AMPLITUDES.knees;
+  document.getElementById('ampTorso').value = AMPLITUDES.torso;
+  document.getElementById('ampArms').value = AMPLITUDES.arms;
+  document.getElementById('frontRear').value = (frontRear * 2);
+  
+  updateDisplayValues();
+}
+
+// Function to apply a preset
+function applyPreset(preset) {
+  const s = preset.settings;
+  
+  // Set parameters
+  speedMultiplier = s.speed;
+  jumpHeight = s.torsoHeight;
+  AMPLITUDES.legs = s.legs;
+  AMPLITUDES.knees = s.knees;
+  AMPLITUDES.torso = s.torso;
+  AMPLITUDES.arms = s.arms;
+
+  if (s.frontRear !== undefined) {
+    frontRear = s.frontRear / 2;
+    rearFront = (2 - s.frontRear) / 2;
+  }
+
+  // Reflect values in sliders and texts
+  updateUI();
+}
+
+// Auto-generate buttons based on the PRESETS array
+function initPresets() {
+  const container = document.getElementById('presetContainer');
+  container.innerHTML = '';
+
+  PRESETS.forEach(preset => {
+    const btn = document.createElement('button');
+    btn.textContent = preset.name;
+    btn.addEventListener('click', () => applyPreset(preset));
+    container.appendChild(btn);
+  });
+}
 
 // --- Helpers ---
 const lerp = (a, b, t) => a + (b - a) * t;
 
 /**
  * Draws a limb as a chain of segments (forward kinematics).
- * Angles are provided in radians, relative to the vertical axis (0 = pointing down).
+ * Angles are given in radians relative to vertical (0 = down).
  */
 function drawLimb(x, y, angles, lengths, color = '#4ecdc4', width = 6) {
   let px = x, py = y;
@@ -110,7 +307,6 @@ function drawLimb(x, y, angles, lengths, color = '#4ecdc4', width = 6) {
   
   for (let i = 0; i < angles.length; i++) {
     cumulativeAngle += angles[i];
-    // Angle 0 = pointing down. Using sin/cos so that the downward direction feels natural.
     const nx = px + Math.sin(cumulativeAngle) * lengths[i];
     const ny = py + Math.cos(cumulativeAngle) * lengths[i];
     ctx.lineTo(nx, ny);
@@ -123,30 +319,22 @@ function drawLimb(x, y, angles, lengths, color = '#4ecdc4', width = 6) {
 }
 
 /**
- * MOTION SYNTHESIS - generates joint angles based on the movement phase.
- * This is the heart of the animation: no keyframes, pure mathematics.
+ * MOTION SYNTHESIS - generates joint angles based on motion phase.
  */
 function synthesizePose(t) {
-  
-  // Legs - phase shifted by π (opposite directions)
   const legSwing = Math.sin(t) * 0.7 * AMPLITUDES.legs * frontRear;
   const legSwingOpposite = Math.sin(t + Math.PI) * 0.7 * AMPLITUDES.legs * rearFront;
   
-  // Knees bend more when the leg is behind (natural movement)
   const kneeBend = (s) => Math.max(0, -Math.sin(s + 0.5)) * 0.9 * AMPLITUDES.knees;
   
-  // Arms - opposite to legs (contralateral movement)
   const armSwingL = Math.sin(t + Math.PI) * 0.6 * AMPLITUDES.arms * rearFront;
   const armSwingR = Math.sin(t) * 0.6 * AMPLITUDES.arms * frontRear;
   
-  // Elbows slightly bent
   const elbowBend = -0.3;
   
-  // Torso sways slightly
   const torsoLean = Math.sin(t * 2) * 0.03 * AMPLITUDES.torso;
   const torsoHeightOffset = Math.sin(t * 2) * jumpHeight * AMPLITUDES.torso;
   
-  // Head nods gently
   const headNod = Math.sin(t * 2) * 0.05 * AMPLITUDES.torso;
   
   return {
@@ -173,20 +361,16 @@ function synthesizePose(t) {
 }
 
 /**
- * Draws the full character in a given pose.
+ * Draws the entire character in a given pose.
  */
 function drawCharacter(pose) {
-  // Hips at the origin point. We draw upwards (torso) and downwards (legs) from the hips.
   const hipX = originX;
   const hipY = originY + 40 + pose.torsoHeightOffset;
   
   // --- LEG 1 ---
   drawLimb(hipX - 8, hipY, pose.leftLeg.angles, pose.leftLeg.lengths, '#ff6b6b', 8);
 
-  const torso = BODY.torso - pose.torsoHeightOffset;
-  
   // --- TORSO ---
-  // Torso leans forward/backward (rotates around the hips)
   const shoulderX = hipX + Math.sin(pose.torsoLean) * BODY.torso;
   const shoulderY = hipY - Math.cos(pose.torsoLean) * BODY.torso;
 
@@ -227,7 +411,7 @@ function drawCharacter(pose) {
   ctx.arc(headX, headY, BODY.headRadius, 0, Math.PI * 2);
   ctx.fill();
   
-  // Eye for orientation
+  // Eye
   const eyeOffsetX = Math.sin(pose.torsoLean + pose.headNod) * 8 - 20;
   const eyeOffsetY = -Math.cos(pose.torsoLean + pose.headNod) * 8;
   ctx.fillStyle = '#1a1a2e';
@@ -245,10 +429,8 @@ function animate(now) {
   const dt = (now - lastTime) / 1000;
   lastTime = now;
   
-  // Phase increases proportionally over time → smooth, continuous motion
   phase += dt * speedMultiplier * 4;
   
-  // Clear screen
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   
   // Draw floor
@@ -259,39 +441,47 @@ function animate(now) {
   ctx.lineTo(canvas.width - 50, originY + 40 + BODY.upperLeg + BODY.lowerLeg);
   ctx.stroke();
   
-  // MOTION SYNTHESIS → POSE → DRAW
   const pose = synthesizePose(phase);
   drawCharacter(pose);
   
   requestAnimationFrame(animate);
 }
 
-// Sliders
+// Sliders Event Listeners
 document.getElementById('speed').addEventListener('input', e => {
   speedMultiplier = parseFloat(e.target.value);
+  updateDisplayValues();
 });
 document.getElementById('ampArms').addEventListener('input', e => {
   AMPLITUDES.arms = parseFloat(e.target.value);
+  updateDisplayValues();
 });
 document.getElementById('ampKnees').addEventListener('input', e => {
   AMPLITUDES.knees = parseFloat(e.target.value);
+  updateDisplayValues();
 });
 document.getElementById('ampTorso').addEventListener('input', e => {
   AMPLITUDES.torso = parseFloat(e.target.value);
+  updateDisplayValues();
 });
 document.getElementById('ampLegs').addEventListener('input', e => {
   AMPLITUDES.legs = parseFloat(e.target.value);
+  updateDisplayValues();
 });
 document.getElementById('torsoHeight').addEventListener('input', e => {
   jumpHeight = parseFloat(e.target.value);
+  updateDisplayValues();
 });
 document.getElementById('frontRear').addEventListener('input', e => {
   const frVal = parseFloat(e.target.value);
-  
   frontRear = (frVal)/2;
   rearFront = (2 - frVal)/2;
-  
+  updateDisplayValues();
 });
+
+// Initialize UI
+initPresets();
+updateDisplayValues();
 
 requestAnimationFrame(animate);
 </script>
