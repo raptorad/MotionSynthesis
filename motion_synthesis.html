@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Motion Synthesis - Ludzik 2D</title>
+  <title>Motion Synthesis - 2D Stick Figure</title>
   <style>
     body {
       margin: 0;
@@ -95,8 +95,8 @@ let rearFront =1;
 const lerp = (a, b, t) => a + (b - a) * t;
 
 /**
- * Rysuje kończynę jako łańcuch segmentów (kinematyka prosta).
- * Kąty podajemy w radianach, względem pionu (0 = w dół).
+ * Draws a limb as a chain of segments (forward kinematics).
+ * Angles are provided in radians, relative to the vertical axis (0 = pointing down).
  */
 function drawLimb(x, y, angles, lengths, color = '#4ecdc4', width = 6) {
   let px = x, py = y;
@@ -110,7 +110,7 @@ function drawLimb(x, y, angles, lengths, color = '#4ecdc4', width = 6) {
   
   for (let i = 0; i < angles.length; i++) {
     cumulativeAngle += angles[i];
-    // Kąt 0 = w dół. Używamy sin/cos tak, żeby kierunek "w dół" był naturalny.
+    // Angle 0 = pointing down. Using sin/cos so that the downward direction feels natural.
     const nx = px + Math.sin(cumulativeAngle) * lengths[i];
     const ny = py + Math.cos(cumulativeAngle) * lengths[i];
     ctx.lineTo(nx, ny);
@@ -123,30 +123,30 @@ function drawLimb(x, y, angles, lengths, color = '#4ecdc4', width = 6) {
 }
 
 /**
- * MOTION SYNTHESIS - generuje kąty stawów na podstawie fazy ruchu.
- * To jest serce animacji: żadnych klatek kluczowych, tylko matematyka.
+ * MOTION SYNTHESIS - generates joint angles based on the movement phase.
+ * This is the heart of the animation: no keyframes, pure mathematics.
  */
 function synthesizePose(t) {
   
-  // Nogi - przesunięte w fazie o π (przeciwstawne)
+  // Legs - phase shifted by π (opposite directions)
   const legSwing = Math.sin(t) * 0.7 * AMPLITUDES.legs * frontRear;
   const legSwingOpposite = Math.sin(t + Math.PI) * 0.7 * AMPLITUDES.legs * rearFront;
   
-  // Kolana zginają się mocniej, gdy noga jest z tyłu (naturalny ruch)
+  // Knees bend more when the leg is behind (natural movement)
   const kneeBend = (s) => Math.max(0, -Math.sin(s + 0.5)) * 0.9 * AMPLITUDES.knees;
   
-  // Ręce - przeciwstawne do nóg (kontralateralny ruch)
+  // Arms - opposite to legs (contralateral movement)
   const armSwingL = Math.sin(t + Math.PI) * 0.6 * AMPLITUDES.arms * rearFront;
   const armSwingR = Math.sin(t) * 0.6 * AMPLITUDES.arms * frontRear;
   
-  // Łokcie lekko zgięte
+  // Elbows slightly bent
   const elbowBend = -0.3;
   
-  // Tułów lekko się kołysze
+  // Torso sways slightly
   const torsoLean = Math.sin(t * 2) * 0.03 * AMPLITUDES.torso;
   const torsoHeightOffset = Math.sin(t * 2) * jumpHeight * AMPLITUDES.torso;
   
-  // Głowa delikatnie się kiwa
+  // Head nods gently
   const headNod = Math.sin(t * 2) * 0.05 * AMPLITUDES.torso;
   
   return {
@@ -173,10 +173,10 @@ function synthesizePose(t) {
 }
 
 /**
- * Rysuje całą postać w danej pozycji.
+ * Draws the full character in a given pose.
  */
 function drawCharacter(pose) {
-  // Biodra w punkcie origin. Rysujemy od bioder w górę (tułów) i w dół (nogi).
+  // Hips at the origin point. We draw upwards (torso) and downwards (legs) from the hips.
   const hipX = originX;
   const hipY = originY + 40 + pose.torsoHeightOffset;
   
@@ -186,7 +186,7 @@ function drawCharacter(pose) {
   const torso = BODY.torso - pose.torsoHeightOffset;
   
   // --- TORSO ---
-  // Tułów pochyla się w przód/tył (obrót wokół bioder)
+  // Torso leans forward/backward (rotates around the hips)
   const shoulderX = hipX + Math.sin(pose.torsoLean) * BODY.torso;
   const shoulderY = hipY - Math.cos(pose.torsoLean) * BODY.torso;
 
@@ -237,7 +237,7 @@ function drawCharacter(pose) {
 }
 
 /**
- * Główna pętla animacji.
+ * Main animation loop.
  */
 let lastTime = performance.now();
 
@@ -245,7 +245,7 @@ function animate(now) {
   const dt = (now - lastTime) / 1000;
   lastTime = now;
   
-  // Faza rośnie proporcjonalnie do czasu → płynny, ciągły ruch
+  // Phase increases proportionally over time → smooth, continuous motion
   phase += dt * speedMultiplier * 4;
   
   // Clear screen
